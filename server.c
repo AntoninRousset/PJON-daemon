@@ -23,18 +23,19 @@
 #include <sys/un.h>
 #include <netinet/in.h>
 #include <netdb.h>
+#include <arpa/inet.h>
 
+#define SOCKET_FILE "/tmp/PJON.sock"
 #define MSG_LENGTH 2048
 
 int open_socket(const char *filename)
 {
 	struct sockaddr_un name;
 	int sock;
-	size_t size;
+	socklen_t size;
 
 	sock = socket(PF_LOCAL, SOCK_STREAM, 0);
-	if (sock < 0)
-	{
+	if (sock < 0) {
 		perror ("socket");
 		exit (EXIT_FAILURE);
 	}
@@ -45,8 +46,7 @@ int open_socket(const char *filename)
 
 	size = SUN_LEN(&name);
 
-	if (bind(sock, (struct sockaddr *) &name, size) < 0)
-	{
+	if (bind(sock, (struct sockaddr *) &name, size) < 0) {
 		perror("bind");
 		exit(EXIT_FAILURE);
 	}
@@ -54,7 +54,7 @@ int open_socket(const char *filename)
 	return sock;
 }
 
-int read_from_client(int sock)
+int read_socket(int sock)
 {
 	char buffer[MSG_LENGTH];
 	int nbytes;
@@ -73,46 +73,41 @@ int read_from_client(int sock)
 
 int main()
 {
-	int sock;
-	fd_set active_fd_set, read_fd_set;
-	int i;
 	struct sockaddr_in clientname;
-	size_t size;
 
-	sock = open_socket("/tmp/pjon.sock");
-	if (listen(sock, 1) < 0)
-	{
+	int sock = open_socket(SOCKET_FILE);
+	if (listen(sock, 1) < 0) {
 		perror("listen");
 		exit(EXIT_FAILURE);
 	}
 
+	fd_set active_fd_set;
 	FD_ZERO(&active_fd_set);
 	FD_SET(sock, &active_fd_set);
 
 	while (1) {
-		read_fd_set = active_fd_set;
+		fd_set read_fd_set = active_fd_set;
 		if (select(FD_SETSIZE, &read_fd_set, NULL, NULL, NULL) < 0) {
 			perror("select");
 			exit(EXIT_FAILURE);
 		}
 
-		for (i = 0; i < FD_SETSIZE; ++i) {
+		for (int i = 0; i < FD_SETSIZE; ++i) {
 			if (FD_ISSET(i, &read_fd_set)) {
 				if (i == sock) {
 					int new;
-					size = sizeof(clientname);
+					socklen_t size = sizeof(clientname);
 					new = accept(sock, (struct sockaddr *) &clientname, &size);
 					if (new < 0) {
 						perror("accept");
 						exit(EXIT_FAILURE);
 					}
-					fprintf(stderr,
-						   "Server: connect from host %s, port %hd.\n",
-						   inet_ntoa (clientname.sin_addr),
-						   ntohs (clientname.sin_port));
+					fprintf(stderr, "Server: connect from host %s, port %hd.\n",
+						    inet_ntoa (clientname.sin_addr),
+						    ntohs (clientname.sin_port));
 					FD_SET(new, &active_fd_set);
 				} else {
-					if (read_from_client(i) < 0) {
+					if (read_socket(i) < 0) {
 						close(i);
 						FD_CLR(i, &active_fd_set);
 					}
@@ -120,5 +115,7 @@ int main()
 			}
 		}
 	}
-}
 
+	close(sock);
+	return EXIT_SUCCESS;
+}

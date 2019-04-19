@@ -24,52 +24,49 @@
 #include <netinet/in.h>
 #include <netdb.h>
 
-#define MAXMSG  512
+#define SOCKET_FILE "/tmp/PJON.sock"
+#define MSG_LENGTH 2048
 
 int open_socket(const char *filename)
 {
-  struct sockaddr_un name;
-  int sock;
-  size_t size;
+	int sock = socket (PF_LOCAL, SOCK_STREAM, 0);
+	if (sock < 0) {
+		perror ("socket");
+		exit (EXIT_FAILURE);
+	}
 
-  /* Create the socket. */
-  sock = socket (PF_LOCAL, SOCK_STREAM, 0);
-  if (sock < 0)
-    {
-      perror ("socket");
-      exit (EXIT_FAILURE);
-    }
+	struct sockaddr_un name;
+	name.sun_family = AF_LOCAL;
+	strncpy(name.sun_path, filename, sizeof (name.sun_path));
+	name.sun_path[sizeof(name.sun_path) - 1] = '\0';
+	socklen_t size = SUN_LEN(&name);
+	if (connect(sock, (struct sockaddr *) &name, size) < 0) {
+		perror("connect");
+		exit(EXIT_FAILURE);
+	}
 
-  /* Bind a name to the socket. */
-  name.sun_family = AF_LOCAL;
-  strncpy (name.sun_path, filename, sizeof (name.sun_path));
-  name.sun_path[sizeof (name.sun_path) - 1] = '\0';
-
-  size = SUN_LEN(&name);
-
-  if (connect(sock, (struct sockaddr *) &name, size) < 0)
-    {
-      perror ("connect");
-      exit (EXIT_FAILURE);
-    }
-
-  return sock;
+	return sock;
 }
 
-int write_to_server(int sock, const char* str)
+int write_socket(int sock, const void* data, size_t size)
 {
-  ssize_t nbytes = send(sock, str, strlen(str), 0);
-  if (nbytes < 0)
-    perror("Send");
-  return nbytes;
+	ssize_t nbytes = send(sock, data, size, 0);
+	if (nbytes < 0)
+		perror("Send");
+
+	return nbytes;
 }
 
 int main()
 {
-  int sock = open_socket("/tmp/pjon.sock");
-  if (sock < 0)
-    return EXIT_FAILURE;
-  write_to_server(sock, "Hello world");
-  return EXIT_SUCCESS;
+	int sock = open_socket(SOCKET_FILE);
+	if (sock < 0)
+		return EXIT_FAILURE;
+
+	const char* msg = "Hello world";
+	write_socket(sock, msg, strlen(msg));
+
+	shutdown(sock, 0);
+	return EXIT_SUCCESS;
 }
 
