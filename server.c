@@ -23,6 +23,7 @@
 #include <sys/un.h>
 #include <netinet/in.h>
 #include <netdb.h>
+#include <arpa/inet.h>
 
 #define MAXMSG  512
 
@@ -30,7 +31,7 @@ int open_socket(const char *filename)
 {
   struct sockaddr_un name;
   int sock;
-  size_t size;
+  socklen_t size;
 
   /* Create the socket. */
   sock = socket (PF_LOCAL, SOCK_STREAM, 0);
@@ -86,7 +87,7 @@ int main()
   fd_set active_fd_set, read_fd_set;
   int i;
   struct sockaddr_in clientname;
-  size_t size;
+  socklen_t size;
 
   /* Create the socket and set it up to accept connections. */
   sock = open_socket("/tmp/pjon.sock");

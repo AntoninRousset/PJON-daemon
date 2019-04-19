@@ -30,7 +30,7 @@ int open_socket(const char *filename)
 {
   struct sockaddr_un name;
   int sock;
-  size_t size;
+  socklen_t size;
 
   /* Create the socket. */
   sock = socket (PF_LOCAL, SOCK_STREAM, 0);
