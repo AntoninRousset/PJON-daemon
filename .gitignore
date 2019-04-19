@@ -1,0 +1,4 @@
+*.o
+*.tu
+client
+server
