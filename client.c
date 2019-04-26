@@ -29,10 +29,10 @@
 
 int open_socket(const char *filename)
 {
-	int sock = socket (PF_LOCAL, SOCK_STREAM, 0);
+	int sock = socket(PF_LOCAL, SOCK_STREAM, 0);
 	if (sock < 0) {
-		perror ("socket");
-		exit (EXIT_FAILURE);
+		perror("socket");
+		exit(EXIT_FAILURE);
 	}
 
 	struct sockaddr_un name;

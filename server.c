@@ -12,6 +12,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <signal.h>
+
 #include <stddef.h>
 #include <stdio.h>
 #include <errno.h>
@@ -27,26 +29,26 @@
 
 #define SOCKET_FILE "/tmp/PJON.sock"
 #define MSG_LENGTH 2048
+#define MAX_CONNECTION 1
+
+int sock;
 
 int open_socket(const char *filename)
 {
-	struct sockaddr_un name;
-	int sock;
-	socklen_t size;
-
-	sock = socket(PF_LOCAL, SOCK_STREAM, 0);
+	int sock = socket(PF_LOCAL, SOCK_STREAM, 0);
 	if (sock < 0) {
-		perror ("socket");
-		exit (EXIT_FAILURE);
+		perror("socket");
+		exit(EXIT_FAILURE);
 	}
 
+	struct sockaddr_un name;
+	memset(&name, 'x', sizeof(name));
 	name.sun_family = AF_LOCAL;
-	strncpy(name.sun_path, filename, sizeof (name.sun_path));
-	name.sun_path[sizeof(name.sun_path) - 1] = '\0';
-
-	size = SUN_LEN(&name);
-
-	if (bind(sock, (struct sockaddr *) &name, size) < 0) {
+	name.sun_path[0] = '\0';
+	strncpy(name.sun_path+1, filename, strlen(filename));
+	socklen_t size = offsetof(struct sockaddr_un, sun_path)
+				   + strlen(filename) + 1;
+	if (bind(sock, (struct sockaddr*) &name, size) < 0) {
 		perror("bind");
 		exit(EXIT_FAILURE);
 	}
@@ -73,10 +75,8 @@ int read_socket(int sock)
 
 int main()
 {
-	struct sockaddr_in clientname;
-
-	int sock = open_socket(SOCKET_FILE);
-	if (listen(sock, 1) < 0) {
+	sock = open_socket(SOCKET_FILE);
+	if (listen(sock, MAX_CONNECTION) < 0) {
 		perror("listen");
 		exit(EXIT_FAILURE);
 	}
@@ -85,6 +85,7 @@ int main()
 	FD_ZERO(&active_fd_set);
 	FD_SET(sock, &active_fd_set);
 
+	struct sockaddr_in clientname;
 	while (1) {
 		fd_set read_fd_set = active_fd_set;
 		if (select(FD_SETSIZE, &read_fd_set, NULL, NULL, NULL) < 0) {
@@ -114,8 +115,12 @@ int main()
 				}
 			}
 		}
-	}
+}
 
-	close(sock);
+	// This will never be called, we should use signal() to catch SIGTERM
+	if (close(sock) < 0) {
+		perror("socket");
+		exit(EXIT_FAILURE);
+	}
 	return EXIT_SUCCESS;
 }
