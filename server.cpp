@@ -28,12 +28,11 @@
 #include <arpa/inet.h>
 
 #define SOCKET_FILE "/tmp/PJON.sock"
-#define MSG_LENGTH 2048
+#define BUFFER_SIZE 2048
 #define MAX_CONNECTION 1
+#define UPDATE_PERIOD 20000
 
-int sock;
-
-int open_socket(const char *filename)
+int open_socket(const char* filename)
 {
 	int sock = socket(PF_LOCAL, SOCK_STREAM, 0);
 	if (sock < 0) {
@@ -53,74 +52,73 @@ int open_socket(const char *filename)
 		exit(EXIT_FAILURE);
 	}
 
+	if (listen(sock, MAX_CONNECTION) < 0) {
+		perror("listen");
+		exit(EXIT_FAILURE);
+	}
 	return sock;
+}
+
+int accept_slave(int master)
+{
+	struct sockaddr_in client;
+	socklen_t size = sizeof(client);
+	int slave = accept(master, (struct sockaddr*) &client, &size);
+	if (slave < 0)
+		perror("Accept slave");
+	return slave;
 }
 
 int read_socket(int sock)
 {
-	char buffer[MSG_LENGTH];
-	int nbytes;
-
-	nbytes = read(sock, buffer, MSG_LENGTH);
-	if (nbytes < 0) {
-		perror("read");
+	char buffer[BUFFER_SIZE];
+	size_t count = read(sock, buffer, sizeof(buffer));
+	if (count < 0) {
+		perror("Read socket");
 		exit(EXIT_FAILURE);
-	} else if (nbytes == 0) {
+	} else if (count == 0) {
 		return -1;
 	} else {
-		fprintf(stderr, "Server: got message: `%s'\n", buffer);
+		printf("message from %d: `%s'\n", sock, buffer);
+		// Forward to PJON
+		// .push(sock, 0x0000, count, buffer);
 		return 0;
 	}
 }
 
 int main()
 {
-	sock = open_socket(SOCKET_FILE);
-	if (listen(sock, MAX_CONNECTION) < 0) {
-		perror("listen");
-		exit(EXIT_FAILURE);
-	}
+	int master = open_socket(SOCKET_FILE);
 
-	fd_set active_fd_set;
-	FD_ZERO(&active_fd_set);
-	FD_SET(sock, &active_fd_set);
-
-	struct sockaddr_in clientname;
+	fd_set active_fds;
+	FD_ZERO(&active_fds);
+	FD_SET(master, &active_fds);
 	while (1) {
-		fd_set read_fd_set = active_fd_set;
-		if (select(FD_SETSIZE, &read_fd_set, NULL, NULL, NULL) < 0) {
+		fd_set read_fds = active_fds;
+		struct timeval tv = {0, UPDATE_PERIOD};
+		if (select(FD_SETSIZE, &read_fds, NULL, NULL, NULL) < 0) {
 			perror("select");
 			exit(EXIT_FAILURE);
 		}
 
 		for (int i = 0; i < FD_SETSIZE; ++i) {
-			if (FD_ISSET(i, &read_fd_set)) {
-				if (i == sock) {
-					int new;
-					socklen_t size = sizeof(clientname);
-					new = accept(sock, (struct sockaddr *) &clientname, &size);
-					if (new < 0) {
-						perror("accept");
-						exit(EXIT_FAILURE);
+			if (FD_ISSET(i, &read_fds)) {
+				if (i == master) {
+					int slave = accept_slave(master);
+					if (slave >= 0) {
+						FD_SET(slave, &active_fds);
+						fprintf(stderr, "new slave %d.\n", slave);
 					}
-					fprintf(stderr, "Server: connect from host %s, port %hd.\n",
-						    inet_ntoa (clientname.sin_addr),
-						    ntohs (clientname.sin_port));
-					FD_SET(new, &active_fd_set);
 				} else {
 					if (read_socket(i) < 0) {
+						printf("rem slave %d.\n", i);
 						close(i);
-						FD_CLR(i, &active_fd_set);
+						FD_CLR(i, &active_fds);
 					}
 				}
 			}
 		}
-}
-
-	// This will never be called, we should use signal() to catch SIGTERM
-	if (close(sock) < 0) {
-		perror("socket");
-		exit(EXIT_FAILURE);
+		// PJON update
 	}
 	return EXIT_SUCCESS;
 }
