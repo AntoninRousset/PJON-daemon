@@ -26,11 +26,17 @@
 #include <netinet/in.h>
 #include <netdb.h>
 #include <arpa/inet.h>
+#include "communication.hpp"
 
 #define SOCKET_FILE "/tmp/PJON.sock"
 #define BUFFER_SIZE 2048
 #define MAX_CONNECTION 1
 #define UPDATE_PERIOD 20000
+
+#define BAUDRATE 19200
+#define ID_COMPUTER 0x42
+#define ID_UNO	0x22
+#define ID_NANO 0x33
 
 int open_socket(const char* filename)
 {
@@ -88,11 +94,15 @@ int read_socket(int sock)
 
 int main()
 {
+  printf("Openning master socket\n");
 	int master = open_socket(SOCKET_FILE);
+
+  Communication com(ID_COMPUTER);
 
 	fd_set active_fds;
 	FD_ZERO(&active_fds);
 	FD_SET(master, &active_fds);
+    printf("Running %d\n");
 	while (1) {
 		fd_set read_fds = active_fds;
 		struct timeval tv = {0, UPDATE_PERIOD};
