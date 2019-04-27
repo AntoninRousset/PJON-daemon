@@ -97,7 +97,6 @@ int main()
   printf("Openning master socket\n");
 	int master = open_socket(SOCKET_FILE);
 
-  Communication com(ID_COMPUTER);
 
 	fd_set active_fds;
 	FD_ZERO(&active_fds);
