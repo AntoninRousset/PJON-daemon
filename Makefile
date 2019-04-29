@@ -1,15 +1,15 @@
 LIBS= -lstdc++ -lgfortran -lcrypt -lm -lrt
 CC = gcc
 LDIR = PJON/src
-CFLAGS = -g -Wall -Wextra -DLINUX -I. -I$(LDIR) -std=gnu++11
+CFLAGS = -g -Wall -Wextra -DLINUX -I. -I$(LDIR) -std=gnu++17
 
 .PHONY: default all clean
 
 default: all
 all: server client
 
-SERVER_DEPS = server.cpp communication.cpp
-CLIENT_DEPS = client.cpp
+SERVER_DEPS = server.cpp communication.cpp logger.cpp
+CLIENT_DEPS = client.cpp logger.cpp
 
 SERVER_OBJECTS = $(patsubst %.cpp, %.o, $(SERVER_DEPS))
 CLIENT_OBJECTS = $(patsubst %.cpp, %.o, $(CLIENT_DEPS)) 

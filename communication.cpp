@@ -1,3 +1,17 @@
+/* 
+ * This program is free software: you can redistribute it and/or modify  
+ * it under the terms of the GNU General Public License as published by  
+ * the Free Software Foundation, version 3.
+ *
+ * This program is distributed in the hope that it will be useful, but 
+ * WITHOUT ANY WARRANTY; without even the implied warranty of 
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU 
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License 
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+
 #include "communication.hpp"
 #include <map>
 #include <vector>
@@ -182,8 +196,7 @@ void log(const char* format, ...)
 
 void receiver(uint8_t * data, uint16_t n, const PJON_Packet_Info &packet_info)
 {
-  printf("< %*s\n", n, data);
-  //reception[reception_p] = (Message_t) {packet_info.sender_id, n};
-  //memcpy(&reception[reception_p].data, data, sizeof(reception[reception_p].data));
-  //reception_p++;
+  reception[reception_p] = (Message_t) {packet_info.sender_id, n};
+  memcpy(&reception[reception_p].data, data, sizeof(reception[reception_p].data));
+  reception_p++;
 }
