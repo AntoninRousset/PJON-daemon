@@ -1,7 +1,7 @@
 LIBS= -lstdc++ -lgfortran -lcrypt -lm -lrt
 CC = gcc
 LDIR = PJON/src
-CFLAGS = -g -Wall -Wextra -DLINUX -I. -I$(LDIR) -std=gnu++17
+CFLAGS = -g -Wall -Wextra -DLINUX -I. -I$(LDIR) -std=gnu++11
 
 .PHONY: default all clean
 

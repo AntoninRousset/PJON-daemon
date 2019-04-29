@@ -31,7 +31,7 @@
 #define SOCKET_FILE "/tmp/PJON.sock"
 #define BUFFER_SIZE 2048
 #define MAX_CONNECTION 1
-#define UPDATE_PERIOD 20000
+#define UPDATE_PERIOD 2000
 
 #define BAUDRATE 19200
 #define ID_COMPUTER 0x42
@@ -87,7 +87,7 @@ int read_socket(int sock)
 	} else {
 		printf("message from %d: `%s'\n", sock, buffer);
 		// Forward to PJON
-		// .push(sock, 0x0000, count, buffer);
+		com_push(sock, ID_NANO, count, buffer);
 		return 0;
 	}
 }
@@ -97,15 +97,17 @@ int main()
   printf("Openning master socket\n");
 	int master = open_socket(SOCKET_FILE);
 
+  com_init(ID_COMPUTER);
+  com_connect("/dev/escaperoom", BAUDRATE);
 
 	fd_set active_fds;
 	FD_ZERO(&active_fds);
 	FD_SET(master, &active_fds);
-    printf("Running %d\n");
+
 	while (1) {
 		fd_set read_fds = active_fds;
 		struct timeval tv = {0, UPDATE_PERIOD};
-		if (select(FD_SETSIZE, &read_fds, NULL, NULL, NULL) < 0) {
+		if (select(FD_SETSIZE, &read_fds, NULL, NULL, &tv) < 0) {
 			perror("select");
 			exit(EXIT_FAILURE);
 		}
@@ -127,7 +129,15 @@ int main()
 				}
 			}
 		}
+
 		// PJON update
+    Request_t results[1000];
+    size_t n = com_send(results, 1000);
+    for (unsigned int i = 0; i < n; i++)
+      printf("> %d (%d)\n", results[i].ref, results[i].state);
+
+    com_receive(NULL, 42);
+
 	}
 	return EXIT_SUCCESS;
 }
