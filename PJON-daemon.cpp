@@ -29,6 +29,37 @@
 #include "communication.hpp"
 #include "config.h"
 
+int daemonize()
+{
+	pid_t pid = fork();
+	if (pid < 0) {
+		perror("daemonize");
+		exit(EXIT_FAILURE);
+	} else if (pid > 0) {
+		exit(EXIT_SUCCESS);
+	}
+
+	//umask(0);
+	/* Open any logs here */        
+
+	pid_t sid = setsid();
+	if (sid < 0) {
+		/* Log the failure */
+		exit(EXIT_FAILURE);
+	}
+
+	if ((chdir("/")) < 0) {
+		/* Log the failure */
+		exit(EXIT_FAILURE);
+	}
+
+	close(STDIN_FILENO);
+	close(STDOUT_FILENO);
+	close(STDERR_FILENO);
+
+	return sid;
+}
+
 int open_socket(const char* filename)
 {
 	int sock = socket(PF_LOCAL, SOCK_STREAM, 0);
@@ -43,7 +74,7 @@ int open_socket(const char* filename)
 	name.sun_path[0] = '\0';
 	strncpy(name.sun_path+1, filename, strlen(filename));
 	socklen_t size = offsetof(struct sockaddr_un, sun_path)
-				   + strlen(filename) + 1;
+		+ strlen(filename) + 1;
 	if (bind(sock, (struct sockaddr*) &name, size) < 0) {
 		perror("bind");
 		exit(EXIT_FAILURE);
@@ -85,11 +116,13 @@ int read_socket(int sock)
 
 int main()
 {
-  printf("Openning master socket\n");
+	//daemonize();
+
+	printf("Openning master socket\n");
 	int master = open_socket(SOCKET_FILE);
 
-  com_init(ID_COMPUTER);
-  com_connect("/dev/escaperoom", BAUDRATE);
+	com_init(ID_COMPUTER);
+	com_connect("/dev/escaperoom", BAUDRATE);
 
 	fd_set active_fds;
 	FD_ZERO(&active_fds);
@@ -122,12 +155,12 @@ int main()
 		}
 
 		// PJON update
-    Request_t results[1000];
-    size_t n = com_send(results, 1000);
-    for (unsigned int i = 0; i < n; i++)
-      printf("> %d (%d)\n", results[i].ref, results[i].state);
+		Request_t results[1000];
+		size_t n = com_send(results, 1000);
+		for (unsigned int i = 0; i < n; i++)
+			printf("> %d (%d)\n", results[i].ref, results[i].state);
 
-    com_receive(NULL, 42);
+		com_receive(NULL, 42);
 
 	}
 	return EXIT_SUCCESS;

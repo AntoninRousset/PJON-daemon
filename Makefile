@@ -28,7 +28,7 @@ config.h:
 .cpp.o:
 	$(CC) $(CFLAGS) -c $<
 
-PJON-daemon.o: config.h PJON-daemon.hpp communication.hpp
+PJON-daemon.o: config.h communication.hpp
 communication.o: config.h
 
 $(OBJ): config.h config.mk
