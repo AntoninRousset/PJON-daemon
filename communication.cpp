@@ -13,10 +13,10 @@
 */
 
 #include "communication.hpp"
+#include "logger.hpp"
 #include <map>
 #include <vector>
-#include <memory>
-#include <stdio.h> // for log
+#include <memory> //TODO usefull?
 
 /* Maximum accepted timeframe between transmission and synchronous
    acknowledgement. This timeframe is affected by latency and CRC computation.
@@ -32,29 +32,31 @@ class Packet {
 
   public:
 
-    Packet(PJON_id_t dest, size_t n, const void* data);
+    Packet(com_id dest, size_t n, const void* data);
     float period;
     uint32_t registration;
     uint32_t timing;
     uint16_t length;
     uint16_t state;
-    PJON_id_t dest;
+    com_id dest;
     uint8_t  attempts;
     char     content[PJON_PACKET_MAX_LENGTH];
 
 };
 
 static PJON<ThroughSerial> bus;
-static std::map<Reference_t, Packet> packets;
-static unsigned int max_attempts;
-static float initial_period;
-static float period_factor;
-static Message_t reception[COM_MAX_INCOMING_MESSAGES];
+static std::map<com_ref, Packet> packets;
+static unsigned int max_attempts = 32;
+static uint32_t baudrate;
+static char* serial_device_path = nullptr;
+static float initial_period = 10;
+static float period_factor = 1.2;
+static com_message reception[COM_MAX_INCOMING_MESSAGES];
 static unsigned int reception_p = 0;
-static void log(const char* format, ...);
+
 static void receiver(uint8_t * data, uint16_t n, const PJON_Packet_Info &packet_info);
 
-Packet::Packet(PJON_id_t dest, size_t n, const void* data)
+Packet::Packet(com_id dest, size_t n, const void* data)
 {
   this->registration = PJON_MICROS();
   this->timing = this->registration;
@@ -67,29 +69,44 @@ Packet::Packet(PJON_id_t dest, size_t n, const void* data)
     memcpy(this->content, data, n); 
 }
 
-void com_init(PJON_id_t id, unsigned int ma, float ip, float pf)
+bool com_init(com_id id, const char *dev, uint32_t bd)
 {
+  log_info("com", "Initialization");
   bus.set_id(id);
   bus.set_receiver(receiver);
-  max_attempts = ma;
-  initial_period = ip;
-  period_factor = pf;
+  baudrate = bd;
+  if (serial_device_path)
+    free(serial_device_path);
+  serial_device_path = (char*) malloc((strlen(dev)+1)*sizeof(char));
+  strcpy(serial_device_path, dev);
+  return true;
 }
 
-bool com_connect(const char* dev, uint32_t baudrate)
+void com_set_max_attempts(unsigned int m)
 {
-  log("** New communication initialiation **");
+  max_attempts = m;
+}
+
+void com_set_time_period(float t0, float f)
+{
+  initial_period = t0;
+  period_factor = f;
+}
+
+bool com_connect()
+{
+  log_info("com", "init");
 
   // open serial
-  log("\t* Opening serial device: %s", dev);
-  bus.strategy.set_serial(serialOpen(dev, baudrate));
+  log_info("com", "Opening serial device: %s", serial_device_path);
+  bus.strategy.set_serial(serialOpen(serial_device_path, baudrate));
   if (!com_is_connected()) {
-    log("\t\t-> Failed to open serial device: %s", dev);
+    log_error("com", "Failed to open serial device: %s", serial_device_path);
     return false;
   }
 
   // setting bus
-  log("\t* Setting up bus with baudrate = %ld", baudrate);
+  log_info("com", "Setting up bus with baudrate = %ld", baudrate);
   bus.strategy.set_baud_rate(baudrate);
 	bus.set_synchronous_acknowledge(true);
   bus.begin();
@@ -97,30 +114,45 @@ bool com_connect(const char* dev, uint32_t baudrate)
   return true;
 }
 
+//TODO be sure of the implementation -> seems ok -> more tests?
 bool com_is_connected(void)
 {
-  return bus.strategy.serial >= 0;
-}
+  fd_set nfds;
+  FD_ZERO(&nfds);
+  FD_SET(bus.strategy.serial, &nfds);
 
-bool com_push(Reference_t r, PJON_id_t dest, size_t n, const void* data)
-{
-  packets.insert(std::pair<Reference_t, Packet>(r, Packet(dest, n, data)));
+  if (bus.strategy.serial < 0)
+    return false;
+
+  struct timeval tv = {0, 1};
+  int ready = select(bus.strategy.serial+1, &nfds, NULL, NULL, &tv);
+  if (FD_ISSET(bus.strategy.serial, &nfds)) {
+    size_t len = 0;
+    ioctl(bus.strategy.serial, FIONREAD, &len);
+    if(len == 0) // no data available -> disconnected
+      return false;
+  }
+
   return true;
 }
 
-void com_cancel(Reference_t r)
+bool com_push(com_ref r, com_id dest, size_t n, const void* data)
 {
-  printf("Cancel before %d\n", packets.size());
+  packets.insert(std::pair<com_ref, Packet>(r, Packet(dest, n, data)));
+  return true;
+}
+
+void com_cancel(com_ref r)
+{
   auto it = packets.find(r);
   if (it != packets.end())
     packets.erase(r);
-  printf("Cancel after %d\n", packets.size());
 }
 
-size_t com_send(Request_t * results, size_t n_max)
+size_t com_send(com_request * results, size_t n_max)
 {
   size_t n = 0;
-  auto to_cancel = std::vector<Reference_t>();
+  auto to_cancel = std::vector<com_ref>();
 
   for (auto &it : packets) {
 
@@ -137,24 +169,24 @@ size_t com_send(Request_t * results, size_t n_max)
 
     // CONTENT_TOO_LONG
     if (p.state == PJON_CONTENT_TOO_LONG) {
-      printf("COM_CONTENT_TOO_LONG (%d)\n", p.state);
-      results[n] = (Request_t){r, COM_CONTENT_TOO_LONG};
+      log_warn("com", "COM_CONTENT_TOO_LONG for request ref=%d", r);
+      results[n] = (com_request){r, COM_CONTENT_TOO_LONG};
       n++;
       to_cancel.push_back(r);
       continue;
     }
 
-    // try to send packet
     p.state = bus.send_packet(p.dest, (char*) p.content, p.length);
-    printf("Try to send to 0x%02x (%d) -> %d\n", p.dest, p.timing, p.state);
+    log_info("com", "Try to send to 0x%02x (t=%dus) -> %d", p.dest, p.timing,
+        p.state);
     p.attempts++;
     p.timing = PJON_MICROS();
     p.period *= period_factor;
 
     // SUCCESS 
     if (p.state == PJON_ACK) {
-      printf("COM_SUCCESS\n");
-      results[n] = (Request_t){r, COM_SUCCESS};
+      log_info("com", "COM_SUCCESS for request ref=%d", r);
+      results[n] = (com_request){r, COM_SUCCESS};
       n++;
       to_cancel.push_back(r);
       continue;
@@ -162,8 +194,9 @@ size_t com_send(Request_t * results, size_t n_max)
 
     // too much attempts -> CONNECTION_LOST
     if (p.attempts > max_attempts) {
-      printf("COM_CONNECTION_LOST: %d/%d\n", p.attempts, max_attempts);
-      results[n] = (Request_t){r, COM_CONNECTION_LOST};
+      log_warn("com", "COM_CONNECTION_LOST for request %d (dest: 0x%02x)", r,
+          p.dest);
+      results[n] = (com_request){r, COM_CONNECTION_LOST};
       n++;
       to_cancel.push_back(r);
       continue;
@@ -177,7 +210,7 @@ size_t com_send(Request_t * results, size_t n_max)
   return n;
 }
 
-size_t com_receive(Message_t * income, size_t n_max)
+size_t com_receive(com_message * income, size_t n_max)
 {
   bus.receive(1000);
 }
@@ -186,17 +219,10 @@ void com_quit()
 {
 }
 
-void log(const char* format, ...)
-{
-  va_list ap;
-  va_start(ap, format);
-  vprintf(format, ap);
-  printf("\n");
-}
-
 void receiver(uint8_t * data, uint16_t n, const PJON_Packet_Info &packet_info)
 {
-  reception[reception_p] = (Message_t) {packet_info.sender_id, n};
+  reception[reception_p] = (com_message) {packet_info.sender_id, n};
   memcpy(&reception[reception_p].data, data, sizeof(reception[reception_p].data));
   reception_p++;
 }
+

@@ -12,7 +12,16 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
+#pragma once
+
+//TODO output colors
+
+#include "protocol.hpp"
 #include <stdio.h>
+
+#ifndef LOG_MAX_PACKET_STR_LEN
+#define LOG_MAX_PACKET_STR_LEN 256
+#endif
 
 // set the n log output files fo and the format tf
 // n: number of outputs (set to 0 for no output)
@@ -23,6 +32,9 @@
 void log_init(size_t n, FILE *fo[], bool c=true, const char *tf="%FT%TZ");
 
 // log, used as printf withou \n at the end
-void log_info(const char *format, ...);
-void log_warn(const char *format, ...);
-void log_error(const char *format, ...);
+void log_info(const char *module, const char *format, ...);
+void log_warn(const char *module, const char *format, ...);
+void log_error(const char *module, const char *format, ...);
+void log_perror(const char *module, const char *format, ...);
+void log_packet(const char *module, const proto_packet *p,
+    const char *format, ...);

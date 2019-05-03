@@ -8,7 +8,7 @@ CFLAGS = -g -Wall -Wextra -DLINUX -I. -I$(LDIR) -std=gnu++17
 default: all
 all: server client
 
-SERVER_DEPS = server.cpp communication.cpp logger.cpp
+SERVER_DEPS = main.cpp socket.cpp server.cpp communication.cpp logger.cpp protocol.cpp
 CLIENT_DEPS = client.cpp logger.cpp
 
 SERVER_OBJECTS = $(patsubst %.cpp, %.o, $(SERVER_DEPS))

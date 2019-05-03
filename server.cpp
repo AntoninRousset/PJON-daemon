@@ -12,132 +12,116 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <signal.h>
+#include "server.hpp"
+#include "logger.hpp"
+#include "socket.hpp"
+#include <vector>
 
-#include <stddef.h>
-#include <stdio.h>
-#include <errno.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <arpa/inet.h>
-#include "communication.hpp"
+static unsigned int update_period;
 
-#define SOCKET_FILE "/tmp/PJON.sock"
-#define BUFFER_SIZE 2048
-#define MAX_CONNECTION 1
-#define UPDATE_PERIOD 2000
-
-#define BAUDRATE 19200
-#define ID_COMPUTER 0x42
-#define ID_UNO	0x22
-#define ID_NANO 0x33
-
-int open_socket(const char* filename)
+void server_init(unsigned int up)
 {
-	int sock = socket(PF_LOCAL, SOCK_STREAM, 0);
-	if (sock < 0) {
-		perror("socket");
-		exit(EXIT_FAILURE);
-	}
-
-	struct sockaddr_un name;
-	memset(&name, 'x', sizeof(name));
-	name.sun_family = AF_LOCAL;
-	name.sun_path[0] = '\0';
-	strncpy(name.sun_path+1, filename, strlen(filename));
-	socklen_t size = offsetof(struct sockaddr_un, sun_path)
-				   + strlen(filename) + 1;
-	if (bind(sock, (struct sockaddr*) &name, size) < 0) {
-		perror("bind");
-		exit(EXIT_FAILURE);
-	}
-
-	if (listen(sock, MAX_CONNECTION) < 0) {
-		perror("listen");
-		exit(EXIT_FAILURE);
-	}
-	return sock;
+  log_info("server", "Initialization");
+  update_period = up;
 }
 
-int accept_slave(int master)
+void server_run()
 {
-	struct sockaddr_in client;
-	socklen_t size = sizeof(client);
-	int slave = accept(master, (struct sockaddr*) &client, &size);
-	if (slave < 0)
-		perror("Accept slave");
-	return slave;
-}
+  log_info("server", "Running");
+  if (com_connect()) {
+    proto_packet p;
+    proto_new_packetInfo((proto_packetInfo*) &p, PROTO_INFO_SERIAL_OPENED);
+    socket_push(SOCKET_ALL, p);
+  }
 
-int read_socket(int sock)
-{
-	char buffer[BUFFER_SIZE];
-	size_t count = read(sock, buffer, sizeof(buffer));
-	if (count < 0) {
-		perror("Read socket");
-		exit(EXIT_FAILURE);
-	} else if (count == 0) {
-		return -1;
-	} else {
-		printf("message from %d: `%s'\n", sock, buffer);
-		// Forward to PJON
-		com_push(sock, ID_NANO, count, buffer);
-		return 0;
-	}
-}
+  while (true) {
 
-int main()
-{
-  printf("Openning master socket\n");
-	int master = open_socket(SOCKET_FILE);
+    if (!socket_wait(update_period))
+      return;
 
-  com_init(ID_COMPUTER);
-  com_connect("/dev/escaperoom", BAUDRATE);
+    unsigned int max_clients = socket_get_max_clients();
+    for (unsigned int sock = 0; sock < max_clients; sock++) {
 
-	fd_set active_fds;
-	FD_ZERO(&active_fds);
-	FD_SET(master, &active_fds);
+      // socket reception
+      std::vector<proto_packet> packets = socket_receive(sock);
+      for (const proto_packet& p : packets) {
+        log_packet("server",  &p, "Received from %d", sock);
+        auto p1 = (proto_packetOutgoingMessage*) &p;
+        com_push(sock, p1->dest, p1->length, p1->data);
+      }
 
-	while (1) {
-		fd_set read_fds = active_fds;
-		struct timeval tv = {0, UPDATE_PERIOD};
-		if (select(FD_SETSIZE, &read_fds, NULL, NULL, &tv) < 0) {
-			perror("select");
-			exit(EXIT_FAILURE);
-		}
+      // socket emission
+      socket_send(sock);
+    }
 
-		for (int i = 0; i < FD_SETSIZE; ++i) {
-			if (FD_ISSET(i, &read_fds)) {
-				if (i == master) {
-					int slave = accept_slave(master);
-					if (slave >= 0) {
-						FD_SET(slave, &active_fds);
-						fprintf(stderr, "new slave %d.\n", slave);
-					}
-				} else {
-					if (read_socket(i) < 0) {
-						printf("rem slave %d.\n", i);
-						close(i);
-						FD_CLR(i, &active_fds);
-					}
-				}
-			}
-		}
+    if (!com_is_connected()) {
+      proto_packet p;
+      proto_new_packetError((proto_packetError*) &p,
+          PROTO_ERROR_FAILED_OPEN_SERIAL);
+      socket_push(SOCKET_ALL, p);
+      if (com_connect()) {
+        proto_packet p;
+        proto_new_packetInfo((proto_packetInfo*) &p, PROTO_INFO_SERIAL_OPENED);
+        socket_push(SOCKET_ALL, p);
+      }
+    }
 
-		// PJON update
-    Request_t results[1000];
+    // PJON emission
+    com_request results[1000];
     size_t n = com_send(results, 1000);
-    for (unsigned int i = 0; i < n; i++)
-      printf("> %d (%d)\n", results[i].ref, results[i].state);
+    for (unsigned int i = 0; i < n; i++) {
+      com_request req = results[i];
+      union {proto_packet p; proto_packetOutgoingResult res;} p;
+      switch (req.state) {
+        case COM_SUCCESS:
+          p.res.result = PROTO_OUTGOING_RESULT_SUCCESS;
+          break;
+        case COM_CONTENT_TOO_LONG:
+          p.res.result = PROTO_OUTGOING_RESULT_CONTENT_TOO_LONG;
+          break;
+        case COM_CONNECTION_LOST:
+            p.res.result = PROTO_OUTGOING_RESULT_CONNECTION_LOST;
+          break;
+        default:
+          p.res.result = PROTO_OUTGOING_RESULT_INTERNAL_ERROR;
+      }
+      socket_push(req.ref, p.p);
+    }
 
-    com_receive(NULL, 42);
 
-	}
-	return EXIT_SUCCESS;
+    //com_receive(NULL, 42);
+    // PJON reception
+  }
 }
+
+/*
+void write_slave_version(int sock)
+{
+  proto_packetVersion p = {PROTO_HEAD_VERSION, PROTO_VERSION};
+  write(sock, &p, sizeof(p));
+}
+
+void write_slave_reception(int sock, const com_message *reception, size_t n)
+{
+  for (size_t i = 0; i < n; i++) {
+    com_message msg = reception[i];
+    proto_packetIngoingMessage p;
+    p.head = PROTO_HEAD_INGOING_MSG;
+    p.src = msg.src;
+    p.length = msg.n;
+    memcpy(p.data, msg.data, msg.n);
+    write(sock, &p, sizeof(p));
+  }
+}
+
+void write_slave_results(const com_request *requests, size_t n)
+{
+  for (size_t i = 0; i < n; i++) {
+    com_request req = requests[i];
+    proto_packetOutgoingResult p;
+    p.head = PROTO_HEAD_OUTGOING_RESULT;
+    p.result = req.state;
+    write(req.ref, &p, sizeof(p));
+  }
+}
+*/
