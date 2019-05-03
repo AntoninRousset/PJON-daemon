@@ -98,4 +98,3 @@ bool print_iso_time(FILE *fo)
   fprintf(fo, "%s - ", outstr);
   return true;
 }
-
