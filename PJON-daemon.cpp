@@ -25,6 +25,41 @@
 #include "socket.hpp"
 #include "server.hpp"
 #include <stdlib.h>
+#include <signal.h>
+#include <unistd.h>
+#include <sys/types.h>
+
+int daemonize()
+{
+	pid_t pid = fork();
+	if (pid < 0) {
+		perror("daemonize");
+		exit(EXIT_FAILURE);
+	} else if (pid > 0) {
+		exit(EXIT_SUCCESS);
+	}
+
+	//umask(0);
+	/* Open any logs here */        
+
+	pid_t sid = setsid();
+	if (sid < 0) {
+		/* Log the failure */
+		exit(EXIT_FAILURE);
+	}
+
+	if ((chdir("/")) < 0) {
+		/* Log the failure */
+		exit(EXIT_FAILURE);
+	}
+
+	close(STDIN_FILENO);
+	close(STDOUT_FILENO);
+	close(STDERR_FILENO);
+
+	return sid;
+}
+
 
 int main()
 {

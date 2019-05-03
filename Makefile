@@ -1,34 +1,47 @@
-LIBS= -lstdc++ -lgfortran -lcrypt -lm -lrt
-CC = gcc
-LDIR = PJON/src
-CFLAGS = -g -Wall -Wextra -DLINUX -I. -I$(LDIR) -std=gnu++17
+# This program is free software: you can redistribute it and/or modify  
+# it under the terms of the GNU General Public License as published by  
+# the Free Software Foundation, version 3.
+#
+# This program is distributed in the hope that it will be useful, but 
+# WITHOUT ANY WARRANTY; without even the implied warranty of 
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU 
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License 
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-.PHONY: default all clean
+.POSIX:
 
-default: all
-all: server client
+include config.mk
 
-SERVER_DEPS = main.cpp socket.cpp server.cpp communication.cpp logger.cpp protocol.cpp
-CLIENT_DEPS = client.cpp logger.cpp
+NAME = PJON-daemon
 
-SERVER_OBJECTS = $(patsubst %.cpp, %.o, $(SERVER_DEPS))
-CLIENT_OBJECTS = $(patsubst %.cpp, %.o, $(CLIENT_DEPS)) 
-HEADERS = $(wildcard *.h)
-HEADERS += $(wildcard *.hpp)
+SRC = PJON-daemon.cpp socket.cpp server.cpp communication.cpp logger.cpp protocol.cpp
+OBJ = $(SRC:.cpp=.o)
 
-%.o: %.cpp $(HEADERS)
-	$(CC) $(CFLAGS) $(LIBS) -c $< -o $@
+all: $(OBJ)
+	$(CC) $(OBJ) $(LDFLAGS) -o $(NAME) 
 
-.PRECIOUS: server client $(SERVER_OBJECTS) $(CLIENT_OBJECTS)
+config.h:
+	cp config.def.h config.h
 
-server: $(SERVER_OBJECTS)
-	$(CC) $(SERVER_OBJECTS) $(LIBS) -o $@
+.cpp.o:
+	$(CC) $(CFLAGS) -c $<
 
-client: $(CLIENT_OBJECTS)
-	$(CC) $(CLIENT_OBJECTS) $(LIBS) -o $@
+PJON-daemon.o: config.h communication.hpp
+communication.o: config.h
+
+$(OBJ): config.h config.mk
 
 clean:
-	-rm -f *.o
-	-rm -f client
-	-rm -f server 
+	rm -f $(NAME) $(OBJ)
 
+install: all 
+	mkdir -p $(DESTDIR)$(PREFIX)/bin
+	cp -f $(NAME) $(DESTDIR)$(PREFIX)/bin
+	chmod 755 $(DESTDIR)$(PREFIX)/bin/$(NAME)
+
+uninstall:
+	rm -f $(DESTDIR)$(PREFIX)/bin/$(NAME)
+
+.PHONY: all clean dist install uninstall
