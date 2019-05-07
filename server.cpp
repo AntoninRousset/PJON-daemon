@@ -47,6 +47,15 @@ void server_run()
       for (const proto_packet& p : packets) {
         log_packet("server",  &p, "Received from %d", sock);
         auto p1 = (proto_packetOutgoingMessage*) &p;
+        if (p.head != PROTO_HEAD_OUTGOING_MSG) {
+          proto_packet p_error;
+          log_error("server", "Received invalid packet head (expecting : %d, "
+            "received: %d)", PROTO_HEAD_INGOING_MSG, p.head);
+          proto_new_packetError((proto_packetError*) &p_error,
+              PROTO_ERROR_RECEIVED_INVALID_PACKET_HEAD);
+          socket_push(sock, p_error);
+          break;
+        }
         com_push(sock, p1->dest, p1->length, p1->data);
       }
 
@@ -71,26 +80,37 @@ void server_run()
     size_t n = com_send(results, 1000);
     for (unsigned int i = 0; i < n; i++) {
       com_request req = results[i];
-      union {proto_packet p; proto_packetOutgoingResult res;} p;
+      proto_packet p;
       switch (req.state) {
         case COM_SUCCESS:
-          p.res.result = PROTO_OUTGOING_RESULT_SUCCESS;
+          proto_new_packetOutgoingResult((proto_packetOutgoingResult*) &p,
+              PROTO_OUTGOING_RESULT_SUCCESS);
           break;
         case COM_CONTENT_TOO_LONG:
-          p.res.result = PROTO_OUTGOING_RESULT_CONTENT_TOO_LONG;
+          proto_new_packetOutgoingResult((proto_packetOutgoingResult*) &p,
+              PROTO_OUTGOING_RESULT_CONTENT_TOO_LONG);
           break;
         case COM_CONNECTION_LOST:
-            p.res.result = PROTO_OUTGOING_RESULT_CONNECTION_LOST;
+          proto_new_packetOutgoingResult((proto_packetOutgoingResult*) &p,
+              PROTO_OUTGOING_RESULT_CONNECTION_LOST);
           break;
         default:
-          p.res.result = PROTO_OUTGOING_RESULT_INTERNAL_ERROR;
+          proto_new_packetOutgoingResult((proto_packetOutgoingResult*) &p,
+              PROTO_OUTGOING_RESULT_INTERNAL_ERROR);
       }
-      socket_push(req.ref, p.p);
+      socket_push(req.ref, p);
+      log_packet("com", &p, "sending");
     }
 
-
-    //com_receive(NULL, 42);
     // PJON reception
+    com_message reception[SERVER_MAX_RECEPTION];
+    n = com_receive(reception, SERVER_MAX_RECEPTION);
+    for (unsigned int i = 0; i < n; i++) {
+      proto_packet p;
+      proto_new_packetIngoingMessage((proto_packetIngoingMessage*) &p,
+          reception[i].src, reception[i].n, reception[i].data);
+      socket_push(SOCKET_ALL, p);
+    }
   }
 }
 

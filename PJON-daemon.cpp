@@ -19,6 +19,7 @@
 #define PJON_ID 0x42
 #define SERIAL_DEVICE "/dev/escaperoom"
 #define BAUDRATE 19200
+#define UPDATE_PERIOD 4'000 // in us
 
 #include "logger.hpp"
 #include "communication.hpp"
@@ -72,6 +73,8 @@ int main()
     log_error(nullptr, "Socket inititalization failure, exiting");
     return EXIT_FAILURE;
   }
+  com_set_time_period(1, 1.4);
+  com_set_max_attempts(40);
 
   /* SOCKET */
   if (!socket_init("/tmp/PJON.sock")){
@@ -80,7 +83,7 @@ int main()
   }
 
   /* SERVER */
-  server_init(1'000'000);
+  server_init(UPDATE_PERIOD);
   server_run();
 }
 

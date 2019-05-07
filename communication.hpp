@@ -13,10 +13,8 @@
 */
 
 
-//TODO logger
-//TODO remove using namespace
-//TODO redo period system, -> need float if log
-//TODO implement com_receive()
+//TODO implement get_ping() and get_success_rate() and warnings
+//TODO implement warning "filling up queue"
 
 #pragma once
 
@@ -67,7 +65,7 @@ bool com_init(com_id id, const char *dev, uint32_t bd);
 // is returned.
 void com_set_max_attempts(unsigned int m);
 
-// Set the initial minimum period t0 between two dispatch trial and the
+// Set the initial minimum period t0 in us between two dispatch trial and the
 // logarithmic factor f. At each each dispatch trial, the period of the packet
 // is multiplied by f until the maximum attempts number is reached or success.
 void com_set_time_period(float t0, float f);

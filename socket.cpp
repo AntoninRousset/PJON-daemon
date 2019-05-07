@@ -172,7 +172,6 @@ void socket_push(int sock, proto_packet p)
 {
   if (sock != SOCKET_ALL) {
     output_queues[sock].push(p);
-    printf(">> %ld\n", output_queues[sock].size());
     return;
   }
 

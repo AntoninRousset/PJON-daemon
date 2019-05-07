@@ -20,7 +20,7 @@
 #include <stdarg.h>
 
 static void log(const char *module, const char *prefix, const char *suffix,
-    const char *format, va_list ap);
+    const char *esc, const char *format, va_list ap);
 static bool print_iso_time(FILE *fo);
 static int packet_to_str(const proto_packet *packet, char *str, size_t size);
 
@@ -51,28 +51,28 @@ void log_info(const char *module, const char *format, ...)
 {
   va_list ap;
   va_start(ap, format);
-  log(module, "", nullptr, format, ap);
+  log(module, "", nullptr, nullptr, format, ap);
 }
 
 void log_warn(const char *module, const char *format, ...)
 {
   va_list ap;
   va_start(ap, format);
-  log(module, "WARNING : ", nullptr, format, ap);
+  log(module, "WARNING : ", nullptr, "\x1b[93m\x1b[1m", format, ap);
 }
 
 void log_error(const char *module, const char *format, ...)
 {
   va_list ap;
   va_start(ap, format);
-  log(module, "ERROR : ", nullptr, format, ap);
+  log(module, "ERROR : ", nullptr, "\x1b[91m\x1b[1m", format, ap);
 }
 
 void log_perror(const char *module, const char *format, ...)
 {
   va_list ap;
   va_start(ap, format);
-  log(module, "ERROR : ", strerror(errno), format, ap);
+  log(module, "ERROR : ", strerror(errno), "\x1b[91m\x1b[1m", format, ap);
 }
 
 void log_packet(const char *module, const proto_packet *p,
@@ -82,26 +82,31 @@ void log_packet(const char *module, const proto_packet *p,
   va_list ap;
   va_start(ap, format);
   packet_to_str(p, packet_str, LOG_MAX_PACKET_STR_LEN);
-  log(module, "PACKET : ", packet_str, format, ap);
+  log(module, "PACKET : ", packet_str, nullptr, format, ap);
 }
 
 void log(const char *module, const char *prefix, const char *suffix,
-    const char *format, va_list ap)
+    const char *esc, const char *format, va_list ap)
 {
   for (unsigned int i = 0; i < outputs_n; i++) {
-    if (outputs[i]) {
-      if (time_format)
-        print_iso_time(outputs[i]);
-      if (module)
-        printf("%s - ", module);
-      if (prefix)
-      printf("%s", prefix);
-      if (format)
-        vprintf(format, ap);
-      if (suffix)
-        printf(" : %s", suffix);
-      printf("\n");
-    }
+    FILE *f = outputs[i];
+    if (!f)
+      return;
+    if (time_format)
+      print_iso_time(f);
+    if (module)
+      fprintf(f, "%s - ", module);
+    if (esc)
+      fprintf(f, "%s", esc);
+    if (prefix)
+      fprintf(f, "%s", prefix);
+    if (esc)
+      fprintf(f, "\x1b[0m");
+    if (format)
+      vfprintf(f, format, ap);
+    if (suffix)
+      fprintf(f, " : %s", suffix);
+    fprintf(f, "\n");
   }
 }
 
@@ -132,7 +137,7 @@ int packet_to_str(const proto_packet *packet, char *str, size_t size)
 
   if (packet->head == PROTO_HEAD_VERSION) {
     auto *p = (proto_packetVersion*) packet;
-    return snprintf(str, size, "{\n"
+    return snprintf(str, size, "\n{\n"
         "\thead: PROTO_HEAD_VERSION (0x%02x)\n"
         "\tversion: '%s'\n"
         "}", PROTO_HEAD_VERSION, p->version);
@@ -140,7 +145,7 @@ int packet_to_str(const proto_packet *packet, char *str, size_t size)
 
   if (packet->head == PROTO_HEAD_INFO) {
     auto *p = (proto_packetInfo*) packet;
-    return snprintf(str, size, "{\n"
+    return snprintf(str, size, "\n{\n"
         "\thead: PROTO_HEAD_INFO (0x%02x)\n"
         "\tcode: 0x%04x\n"
         "}", PROTO_HEAD_INFO, p->code);
@@ -148,7 +153,7 @@ int packet_to_str(const proto_packet *packet, char *str, size_t size)
 
   if (packet->head == PROTO_HEAD_WARN) {
     auto *p = (proto_packetWarn*) packet;
-    return snprintf(str, size, "{\n"
+    return snprintf(str, size, "\n{\n"
         "\thead: PROTO_HEAD_WARN (0x%02x)\n"
         "\tcode: 0x%04x\n"
         "}", PROTO_HEAD_WARN, p->code);
@@ -156,7 +161,7 @@ int packet_to_str(const proto_packet *packet, char *str, size_t size)
 
   if (packet->head == PROTO_HEAD_ERROR) {
     auto *p = (proto_packetError*) packet;
-    return snprintf(str, size, "{\n"
+    return snprintf(str, size, "\n{\n"
         "\thead: PROTO_HEAD_ERROR (0x%02x)\n"
         "\tcode: 0x%04x\n"
         "}", PROTO_HEAD_ERROR, p->code);
@@ -164,7 +169,7 @@ int packet_to_str(const proto_packet *packet, char *str, size_t size)
 
   if (packet->head == PROTO_HEAD_INGOING_MSG) {
     auto *p = (proto_packetIngoingMessage*) packet;
-    return snprintf(str, size, "{\n"
+    return snprintf(str, size, "\n{\n"
         "\thead: PROTO_HEAD_INGOING_MSG (0x%02x)\n"
         "\tsrc: 0x%02x\n"
         "\tlength: %d\n"
@@ -174,7 +179,7 @@ int packet_to_str(const proto_packet *packet, char *str, size_t size)
 
   if (packet->head == PROTO_HEAD_OUTGOING_MSG) {
     auto *p = (proto_packetOutgoingMessage*) packet;
-    return snprintf(str, size, "{\n"
+    return snprintf(str, size, "\n{\n"
         "\thead: PROTO_HEAD_OUTGOING_MSG (0x%02x)\n"
         "\tdest: 0x%02x\n"
         "\tlength: %d\n"
@@ -184,7 +189,7 @@ int packet_to_str(const proto_packet *packet, char *str, size_t size)
 
   if (packet->head == PROTO_HEAD_OUTGOING_RESULT) {
     auto *p = (proto_packetOutgoingResult*) packet;
-    return snprintf(str, size, "{\n"
+    return snprintf(str, size, "\n{\n"
         "\thead: PROTO_HEAD_OUTGOING_RESULT (0x%02x)\n"
         "\tcode: 0x%04x\n"
         "}", PROTO_HEAD_OUTGOING_RESULT, p->result);

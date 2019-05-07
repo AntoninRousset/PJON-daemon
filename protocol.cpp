@@ -94,7 +94,9 @@ bool proto_new_packetOutgoingMessage(proto_packetOutgoingMessage *p,
 bool proto_new_packetOutgoingResult(proto_packetOutgoingResult *p,
     proto_outgoingResult result)
 {
-
+  p->head = PROTO_HEAD_OUTGOING_RESULT;
+  p->result = result;
+  return true;
 }
 
 

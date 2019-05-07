@@ -22,11 +22,14 @@
    acknowledgement. This timeframe is affected by latency and CRC computation.
    Could be necessary to higher this value if devices are separated by long
    physical distance and or if transmitting long packets. */
-#define TS_RESPONSE_TIME_OUT 35000
-#define PJON_INCLUDE_TS true // Only include ThroughSerial
+#define TSA_RESPONSE_TIME_OUT 100000
+#define PJON_INCLUDE_TSA true // Only include ThroughSerialAsync
 #include <stdlib.h>
 #include <unistd.h>
 #include <PJON.h>
+
+#define min(a, b) (a > b ? b : a)
+#define max(a, b) (a > b ? a : b)
 
 class Packet {
 
@@ -44,15 +47,46 @@ class Packet {
 
 };
 
-static PJON<ThroughSerial> bus;
+template<typename T>
+class ApproxFloatingMean {
+
+  public:
+
+    ApproxFloatingMean(unsigned int n, T initial_value=0)
+    {
+      this->n = n;
+      this->mean = initial_value;
+    }
+
+    T push(T v)
+    {
+      this->mean = this->mean + (v - this->mean) / this->n;
+      return this->get();
+    }
+
+    T get()
+    {
+      return this->mean;
+    }
+
+  private:
+
+    unsigned int n;
+    T mean;
+};
+
+static PJON<ThroughSerialAsync> bus;
 static std::map<com_ref, Packet> packets;
 static unsigned int max_attempts = 32;
 static uint32_t baudrate;
 static char* serial_device_path = nullptr;
-static float initial_period = 10;
+static float initial_period = 10; // in us
 static float period_factor = 1.2;
 static com_message reception[COM_MAX_INCOMING_MESSAGES];
 static unsigned int reception_p = 0;
+static bool state_log_connected = true;
+static ApproxFloatingMean<float> success_rate(1024, 1.0);
+static ApproxFloatingMean<float> ping(1024, 0);
 
 static void receiver(uint8_t * data, uint16_t n, const PJON_Packet_Info &packet_info);
 
@@ -71,7 +105,7 @@ Packet::Packet(com_id dest, size_t n, const void* data)
 
 bool com_init(com_id id, const char *dev, uint32_t bd)
 {
-  log_info("com", "Initialization");
+  log_info("com", "Initialization with id: 0x%02x", id);
   bus.set_id(id);
   bus.set_receiver(receiver);
   baudrate = bd;
@@ -95,20 +129,22 @@ void com_set_time_period(float t0, float f)
 
 bool com_connect()
 {
-  log_info("com", "init");
-
   // open serial
-  log_info("com", "Opening serial device: %s", serial_device_path);
   bus.strategy.set_serial(serialOpen(serial_device_path, baudrate));
   if (!com_is_connected()) {
-    log_error("com", "Failed to open serial device: %s", serial_device_path);
+    if (state_log_connected)
+      log_error("com", "Failed to open serial device: %s", serial_device_path);
+    state_log_connected = false;
     return false;
   }
+  state_log_connected = true;
+  log_info("com", "Serial device opened: %s", serial_device_path);
 
   // setting bus
   log_info("com", "Setting up bus with baudrate = %ld", baudrate);
   bus.strategy.set_baud_rate(baudrate);
 	bus.set_synchronous_acknowledge(true);
+	bus.set_asynchronous_acknowledge(false);
   bus.begin();
 
   return true;
@@ -125,7 +161,7 @@ bool com_is_connected(void)
     return false;
 
   struct timeval tv = {0, 1};
-  int ready = select(bus.strategy.serial+1, &nfds, NULL, NULL, &tv);
+  select(bus.strategy.serial+1, &nfds, NULL, NULL, &tv);
   if (FD_ISSET(bus.strategy.serial, &nfds)) {
     size_t len = 0;
     ioctl(bus.strategy.serial, FIONREAD, &len);
@@ -139,6 +175,7 @@ bool com_is_connected(void)
 bool com_push(com_ref r, com_id dest, size_t n, const void* data)
 {
   packets.insert(std::pair<com_ref, Packet>(r, Packet(dest, n, data)));
+  printf(">> %ld\n", packets.size());
   return true;
 }
 
@@ -173,22 +210,26 @@ size_t com_send(com_request * results, size_t n_max)
       results[n] = (com_request){r, COM_CONTENT_TOO_LONG};
       n++;
       to_cancel.push_back(r);
+      success_rate.push(false);
       continue;
     }
 
     p.state = bus.send_packet(p.dest, (char*) p.content, p.length);
-    log_info("com", "Try to send to 0x%02x (t=%dus) -> %d", p.dest, p.timing,
-        p.state);
     p.attempts++;
     p.timing = PJON_MICROS();
     p.period *= period_factor;
 
     // SUCCESS 
     if (p.state == PJON_ACK) {
-      log_info("com", "COM_SUCCESS for request ref=%d", r);
+      log_info("com", "COM_SUCCESS for request ref=%d after t=%'ldus", r,
+          p.timing-p.registration);
       results[n] = (com_request){r, COM_SUCCESS};
       n++;
       to_cancel.push_back(r);
+      ping.push(p.timing-p.registration);
+      success_rate.push(true);
+      printf("ping: %8.2fms, success rate: %.2f\n", ping.get(),
+          100*success_rate.get());
       continue;
     }
 
@@ -199,6 +240,7 @@ size_t com_send(com_request * results, size_t n_max)
       results[n] = (com_request){r, COM_CONNECTION_LOST};
       n++;
       to_cancel.push_back(r);
+      success_rate.push(false);
       continue;
     }
 
@@ -210,9 +252,13 @@ size_t com_send(com_request * results, size_t n_max)
   return n;
 }
 
-size_t com_receive(com_message * income, size_t n_max)
+size_t com_receive(com_message *m, size_t n_max)
 {
-  bus.receive(1000);
+  bus.receive();
+  size_t n = min(n_max, reception_p);
+  reception_p = 0;
+  memcpy(m, reception, n*sizeof(com_message));
+  return n;
 }
 
 void com_quit()
@@ -221,7 +267,9 @@ void com_quit()
 
 void receiver(uint8_t * data, uint16_t n, const PJON_Packet_Info &packet_info)
 {
-  reception[reception_p] = (com_message) {packet_info.sender_id, n};
+  printf("Reception: (%d) %.*s / %d\n", n, n, data, reception_p);
+  reception[reception_p].src = packet_info.sender_id;
+  reception[reception_p].n = n;
   memcpy(&reception[reception_p].data, data, sizeof(reception[reception_p].data));
   reception_p++;
 }
