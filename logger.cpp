@@ -28,6 +28,7 @@ static FILE ** outputs = nullptr;
 static size_t outputs_n = 0;
 static bool colors = true;
 static char *time_format = nullptr;
+static unsigned int level = 0;
 
 void log_init(size_t n, FILE *fo[], bool c, const char *tf)
 {
@@ -47,8 +48,15 @@ void log_init(size_t n, FILE *fo[], bool c, const char *tf)
   log_info("logger", "Initialization");
 }
 
+void log_set_level(unsigned int l)
+{
+  level = l;
+}
+
 void log_info(const char *module, const char *format, ...)
 {
+  if (level > 0)
+    return;
   va_list ap;
   va_start(ap, format);
   log(module, "", nullptr, nullptr, format, ap);
@@ -56,6 +64,8 @@ void log_info(const char *module, const char *format, ...)
 
 void log_warn(const char *module, const char *format, ...)
 {
+  if (level > 1)
+    return;
   va_list ap;
   va_start(ap, format);
   log(module, "WARNING : ", nullptr, "\x1b[93m\x1b[1m", format, ap);
@@ -63,6 +73,8 @@ void log_warn(const char *module, const char *format, ...)
 
 void log_error(const char *module, const char *format, ...)
 {
+  if (level > 2)
+    return;
   va_list ap;
   va_start(ap, format);
   log(module, "ERROR : ", nullptr, "\x1b[91m\x1b[1m", format, ap);
@@ -70,6 +82,8 @@ void log_error(const char *module, const char *format, ...)
 
 void log_perror(const char *module, const char *format, ...)
 {
+  if (level > 2)
+    return;
   va_list ap;
   va_start(ap, format);
   log(module, "ERROR : ", strerror(errno), "\x1b[91m\x1b[1m", format, ap);
@@ -78,6 +92,8 @@ void log_perror(const char *module, const char *format, ...)
 void log_packet(const char *module, const proto_packet *p,
     const char *format, ...)
 {
+  if (level > 0)
+    return;
   static char packet_str[LOG_MAX_PACKET_STR_LEN];
   va_list ap;
   va_start(ap, format);

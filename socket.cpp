@@ -232,7 +232,7 @@ int open_socket(const char* filename)
     return -1;
 	}
 
-	if (listen(sock, 1) < 0) {
+	if (listen(sock, 10000) < 0) {
 		perror("listen");
     return -1;
 	}

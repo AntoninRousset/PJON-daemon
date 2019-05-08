@@ -67,6 +67,7 @@ int main()
   /* LOGGER */
   FILE* log_outputs[1] = {stdout};
   log_init(1, log_outputs);
+  log_set_level(1); // only warnings and errors
 
   /* COMMUNICATION */
   if (!com_init(PJON_ID, SERIAL_DEVICE, BAUDRATE)) {
@@ -77,7 +78,7 @@ int main()
   com_set_max_attempts(40);
 
   /* SOCKET */
-  if (!socket_init("/tmp/PJON.sock")){
+  if (!socket_init("/tmp/PJON.sock", 1024)){
     log_error(nullptr, "Socket inititalization failure, exiting");
     return EXIT_FAILURE;
   }

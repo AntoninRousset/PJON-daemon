@@ -85,10 +85,12 @@ static float period_factor = 1.2;
 static com_message reception[COM_MAX_INCOMING_MESSAGES];
 static unsigned int reception_p = 0;
 static bool state_log_connected = true;
-static ApproxFloatingMean<float> success_rate(1024, 1.0);
-static ApproxFloatingMean<float> ping(1024, 0);
+static ApproxFloatingMean<float> success_rate(16, 1.0);
+static ApproxFloatingMean<float> ping(8, 0);
 
 static void receiver(uint8_t * data, uint16_t n, const PJON_Packet_Info &packet_info);
+static void record_ping(float t);
+static void record_success_rate(bool success);
 
 Packet::Packet(com_id dest, size_t n, const void* data)
 {
@@ -175,7 +177,10 @@ bool com_is_connected(void)
 bool com_push(com_ref r, com_id dest, size_t n, const void* data)
 {
   packets.insert(std::pair<com_ref, Packet>(r, Packet(dest, n, data)));
-  printf(">> %ld\n", packets.size());
+  if (packets.size() > COM_OUTGOING_QUEUE_WARNING_THRESHOLD) {
+    log_warn("com", "Outgoing packets queue is filling up %d/%d",
+        packets.size(), COM_OUTGOING_QUEUE_WARNING_THRESHOLD);
+  }
   return true;
 }
 
@@ -210,7 +215,7 @@ size_t com_send(com_request * results, size_t n_max)
       results[n] = (com_request){r, COM_CONTENT_TOO_LONG};
       n++;
       to_cancel.push_back(r);
-      success_rate.push(false);
+      record_success_rate(false);
       continue;
     }
 
@@ -225,11 +230,9 @@ size_t com_send(com_request * results, size_t n_max)
           p.timing-p.registration);
       results[n] = (com_request){r, COM_SUCCESS};
       n++;
+      record_success_rate(true);
+      record_ping(p.timing-p.registration);
       to_cancel.push_back(r);
-      ping.push(p.timing-p.registration);
-      success_rate.push(true);
-      printf("ping: %8.2fms, success rate: %.2f\n", ping.get(),
-          100*success_rate.get());
       continue;
     }
 
@@ -240,7 +243,7 @@ size_t com_send(com_request * results, size_t n_max)
       results[n] = (com_request){r, COM_CONNECTION_LOST};
       n++;
       to_cancel.push_back(r);
-      success_rate.push(false);
+      record_success_rate(false);
       continue;
     }
 
@@ -267,10 +270,27 @@ void com_quit()
 
 void receiver(uint8_t * data, uint16_t n, const PJON_Packet_Info &packet_info)
 {
-  printf("Reception: (%d) %.*s / %d\n", n, n, data, reception_p);
+  log_info("com", "Reception: (%d) %.*s / %d\n", n, n, data, reception_p);
   reception[reception_p].src = packet_info.sender_id;
   reception[reception_p].n = n;
-  memcpy(&reception[reception_p].data, data, sizeof(reception[reception_p].data));
+  memcpy(&reception[reception_p].data, data,
+      sizeof(reception[reception_p].data));
   reception_p++;
+}
+
+void record_ping(float t)
+{
+  if (ping.push(t) >= COM_PING_WARNING_THRESHOLD) {
+    log_warn("com", "Ping is high: %.3fms (warning threshold: %.3fms)",
+        ping.get()/1000.f, COM_PING_WARNING_THRESHOLD/1000.f);
+  }
+}
+
+void record_success_rate(bool success)
+{
+  if (success_rate.push(success) <= COM_SUCCESS_RATE_WARNING_THRESHOLD) {
+    log_warn("com", "Success rate is low: %.2f\% (warning threshold: %.2f\%)",
+        success_rate.get()*100.f, COM_SUCCESS_RATE_WARNING_THRESHOLD*100.f);
+  }
 }
 

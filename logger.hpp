@@ -31,6 +31,12 @@
 // to be written)
 void log_init(size_t n, FILE *fo[], bool c=true, const char *tf="%FT%TZ");
 
+// set log level
+// 0: everything is printed
+// 1: warnings and errors
+// 3: only errors
+void log_set_level(unsigned int l);
+
 // log, used as printf withou \n at the end
 void log_info(const char *module, const char *format, ...);
 void log_warn(const char *module, const char *format, ...);
