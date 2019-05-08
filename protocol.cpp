@@ -10,9 +10,10 @@
  *
  * You should have received a copy of the GNU General Public License 
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
-*/
+ */
 
 #include "protocol.hpp"
+
 #include <string.h>
 
 proto_packet proto_read_copy(const char *buffer)
@@ -66,7 +67,7 @@ bool proto_new_packetError(proto_packetError *p, proto_code code)
 }
 
 bool proto_new_packetIngoingMessage(proto_packetIngoingMessage *p,
-    proto_id src, proto_dataLength length, const proto_data* data)
+				  proto_id src, proto_dataLength length, const proto_data* data)
 {
   p->head = PROTO_HEAD_INGOING_MSG;
   p->src = src;
@@ -79,7 +80,7 @@ bool proto_new_packetIngoingMessage(proto_packetIngoingMessage *p,
 }
 
 bool proto_new_packetOutgoingMessage(proto_packetOutgoingMessage *p,
-    proto_id dest, proto_dataLength length, const proto_data* data)
+				 proto_id dest, proto_dataLength length, const proto_data* data)
 {
   p->head = PROTO_HEAD_OUTGOING_MSG;
   p->dest = dest;
@@ -92,7 +93,7 @@ bool proto_new_packetOutgoingMessage(proto_packetOutgoingMessage *p,
 }
 
 bool proto_new_packetOutgoingResult(proto_packetOutgoingResult *p,
-    proto_outgoingResult result)
+									proto_outgoingResult result)
 {
   p->head = PROTO_HEAD_OUTGOING_RESULT;
   p->result = result;

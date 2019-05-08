@@ -23,7 +23,7 @@ all: $(OBJ)
 	$(CC) $(OBJ) $(LDFLAGS) -o $(NAME) 
 
 config.h:
-	cp config.def.h config.h
+	cp -f config.def.h config.h
 
 .cpp.o:
 	$(CC) $(CFLAGS) -c $<

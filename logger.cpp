@@ -13,14 +13,15 @@
 */
 
 #include "logger.hpp"
+
+#include <errno.h>
+#include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <errno.h>
-#include <stdarg.h>
 
 static void log(const char *module, const char *prefix, const char *suffix,
-    const char *esc, const char *format, va_list ap);
+				const char *esc, const char *format, va_list ap);
 static bool print_iso_time(FILE *fo);
 static int packet_to_str(const proto_packet *packet, char *str, size_t size);
 
@@ -90,7 +91,7 @@ void log_perror(const char *module, const char *format, ...)
 }
 
 void log_packet(const char *module, const proto_packet *p,
-    const char *format, ...)
+				const char *format, ...)
 {
   if (level > 0)
     return;
@@ -102,7 +103,7 @@ void log_packet(const char *module, const proto_packet *p,
 }
 
 void log(const char *module, const char *prefix, const char *suffix,
-    const char *esc, const char *format, va_list ap)
+		 const char *esc, const char *format, va_list ap)
 {
   for (unsigned int i = 0; i < outputs_n; i++) {
     FILE *f = outputs[i];

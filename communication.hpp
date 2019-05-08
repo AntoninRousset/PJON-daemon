@@ -21,47 +21,49 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "config.h"
+
 #ifndef COM_PACKET_MAX_LENGTH
-#define COM_PACKET_MAX_LENGTH 50
+#	define COM_PACKET_MAX_LENGTH 50
 #endif
 #define PJON_PACKET_MAX_LENGTH COM_PACKET_MAX_LENGTH
 
 #ifndef COM_MAX_INCOMING_MESSAGES
-#define COM_MAX_INCOMING_MESSAGES 1024
+#	define COM_MAX_INCOMING_MESSAGES 1024
 #endif
 
 #ifndef COM_OUTGOING_QUEUE_WARNING_THRESHOLD
-#define COM_OUTGOING_QUEUE_WARNING_THRESHOLD 32
+#	define COM_OUTGOING_QUEUE_WARNING_THRESHOLD 32
 #endif
 
 #ifndef COM_PING_WARNING_THRESHOLD
-#define COM_PING_WARNING_THRESHOLD 30'000 // in us
+#	define COM_PING_WARNING_THRESHOLD 30'000 // in us
 #endif
 
 #ifndef COM_SUCCESS_RATE_WARNING_THRESHOLD
-#define COM_SUCCESS_RATE_WARNING_THRESHOLD 0.95
+#	define COM_SUCCESS_RATE_WARNING_THRESHOLD 0.95
 #endif
 
 typedef uint8_t com_id;
 typedef int16_t com_ref;
 
 enum com_state : int8_t {
-  COM_PENDING = 0,
-  COM_SUCCESS = 1,
-  COM_FAILED_OPEN_SERIAL  = -1,
-  COM_CONTENT_TOO_LONG    = -2, 
-  COM_CONNECTION_LOST     = -3
+	COM_PENDING = 0,
+	COM_SUCCESS = 1,
+	COM_FAILED_OPEN_SERIAL  = -1,
+	COM_CONTENT_TOO_LONG    = -2, 
+	COM_CONNECTION_LOST     = -3
 };
 
 typedef struct {
-  com_ref ref;
-  enum com_state state;
+	com_ref ref;
+	enum com_state state;
 } com_request;
 
 typedef struct {
-  com_id src;
-  size_t n;
-  char data[PJON_PACKET_MAX_LENGTH];
+	com_id src;
+	size_t n;
+	char data[PJON_PACKET_MAX_LENGTH];
 } com_message;
 
 

@@ -14,13 +14,12 @@
 
 #pragma once
 
-//TODO output colors
-
 #include "protocol.hpp"
+
 #include <stdio.h>
 
 #ifndef LOG_MAX_PACKET_STR_LEN
-#define LOG_MAX_PACKET_STR_LEN 256
+#	define LOG_MAX_PACKET_STR_LEN 256
 #endif
 
 // set the n log output files fo and the format tf
@@ -43,4 +42,4 @@ void log_warn(const char *module, const char *format, ...);
 void log_error(const char *module, const char *format, ...);
 void log_perror(const char *module, const char *format, ...);
 void log_packet(const char *module, const proto_packet *p,
-    const char *format, ...);
+				const char *format, ...);

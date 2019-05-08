@@ -17,10 +17,10 @@
 #define MAX_CONNECTION 1
 #define UPDATE_PERIOD 2000
 
+#define SERIAL_DEVICE "/dev/escaperoom"
 #define BAUDRATE 19200
 #define ID_COMPUTER 0x42
 #define ID_UNO	0x22
 #define ID_NANO 0x33
 
-#define COM_PACKET_MAX_LENGTH 50
 #define COM_MAX_INCOMING_MESSAGES 1024

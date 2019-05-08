@@ -16,8 +16,9 @@
 
 #pragma once
 
-
 #include <stdint.h>
+
+#include "config.h"
 
 #define PROTO_VERSION "0.0.1"
 #define PROTO_PACKET_SIZE 64
@@ -33,76 +34,76 @@ typedef char proto_data;
 #pragma pack(push, 1)
 
 typedef struct {
-  proto_head head;
-  char padding[PROTO_PACKET_SIZE-sizeof(proto_head)];
+	proto_head head;
+	char padding[PROTO_PACKET_SIZE-sizeof(proto_head)];
 } proto_packet;
 
 typedef struct {
-  proto_head head;
-  char version[PROTO_PACKET_SIZE-sizeof(proto_head)];
+	proto_head head;
+	char version[PROTO_PACKET_SIZE-sizeof(proto_head)];
 } proto_packetVersion;
 
 typedef struct {
-  proto_head head;
-  proto_code code;
-  char padding[PROTO_PACKET_SIZE-sizeof(proto_head)-sizeof(proto_code)];
+	proto_head head;
+	proto_code code;
+	char padding[PROTO_PACKET_SIZE-sizeof(proto_head)-sizeof(proto_code)];
 } proto_packetInfo;
 
 typedef struct {
-  proto_head head;
-  proto_code code;
-  char padding[PROTO_PACKET_SIZE-sizeof(proto_head)-sizeof(proto_code)];
+	proto_head head;
+	proto_code code;
+	char padding[PROTO_PACKET_SIZE-sizeof(proto_head)-sizeof(proto_code)];
 } proto_packetWarn;
 
 typedef struct {
-  proto_head head;
-  proto_code code;
-  char padding[PROTO_PACKET_SIZE-sizeof(proto_head)-sizeof(proto_code)];
+	proto_head head;
+	proto_code code;
+	char padding[PROTO_PACKET_SIZE-sizeof(proto_head)-sizeof(proto_code)];
 } proto_packetError;
 
 typedef struct {
-  proto_head head;
-  proto_id src;
-  proto_dataLength length;
-  proto_data data[PROTO_DATA_MAX_LENGTH];
-  char padding[PROTO_PACKET_SIZE-sizeof(proto_head)-sizeof(proto_id)
-    -sizeof(proto_dataLength)-PROTO_DATA_MAX_LENGTH*sizeof(proto_data)];
+	proto_head head;
+	proto_id src;
+	proto_dataLength length;
+	proto_data data[PROTO_DATA_MAX_LENGTH];
+	char padding[PROTO_PACKET_SIZE-sizeof(proto_head)-sizeof(proto_id)
+		-sizeof(proto_dataLength)-PROTO_DATA_MAX_LENGTH*sizeof(proto_data)];
 } proto_packetIngoingMessage;
 
 typedef struct {
-  proto_head head;
-  proto_id dest;
-  proto_dataLength length;
-  proto_data data[PROTO_DATA_MAX_LENGTH];
-  char padding[PROTO_PACKET_SIZE-sizeof(proto_head)-sizeof(proto_id)
-    -sizeof(proto_dataLength)-PROTO_DATA_MAX_LENGTH*sizeof(proto_data)];
+	proto_head head;
+	proto_id dest;
+	proto_dataLength length;
+	proto_data data[PROTO_DATA_MAX_LENGTH];
+	char padding[PROTO_PACKET_SIZE-sizeof(proto_head)-sizeof(proto_id)
+		-sizeof(proto_dataLength)-PROTO_DATA_MAX_LENGTH*sizeof(proto_data)];
 } proto_packetOutgoingMessage;
 
 typedef struct {
-  proto_head head;
-  proto_outgoingResult result;
-  char padding[PROTO_PACKET_SIZE-sizeof(proto_head)-sizeof(proto_outgoingResult)];
+	proto_head head;
+	proto_outgoingResult result;
+	char padding[PROTO_PACKET_SIZE-sizeof(proto_head)-sizeof(proto_outgoingResult)];
 } proto_packetOutgoingResult;
 
 
 #pragma pack(pop)
 
 static_assert(sizeof(proto_packet) == PROTO_PACKET_SIZE,
-    "Invalid struct proto_packet");
+		"Invalid struct proto_packet");
 static_assert(sizeof(proto_packetVersion) == PROTO_PACKET_SIZE,
-    "Invalid struct proto_packetVersion");
+		"Invalid struct proto_packetVersion");
 static_assert(sizeof(proto_packetInfo) == PROTO_PACKET_SIZE,
-    "Invalid struct proto_packetInfo");
+		"Invalid struct proto_packetInfo");
 static_assert(sizeof(proto_packetWarn) == PROTO_PACKET_SIZE,
-    "Invalid struct proto_packetWarn");
+		"Invalid struct proto_packetWarn");
 static_assert(sizeof(proto_packetError) == PROTO_PACKET_SIZE,
-    "Invalid struct proto_packetError");
+		"Invalid struct proto_packetError");
 static_assert(sizeof(proto_packetIngoingMessage) == PROTO_PACKET_SIZE,
-    "Invalid struct proto_packetIngoingMessage");
+		"Invalid struct proto_packetIngoingMessage");
 static_assert(sizeof(proto_packetOutgoingMessage) == PROTO_PACKET_SIZE,
-    "Invalid struct proto_packetOutgoingMessage");
+		"Invalid struct proto_packetOutgoingMessage");
 static_assert(sizeof(proto_packetOutgoingResult) == PROTO_PACKET_SIZE,
-    "Invalid struct proto_packetOutgoingResult");
+		"Invalid struct proto_packetOutgoingResult");
 
 /* Heads */
 #define PROTO_HEAD_VERSION          0x00
@@ -132,10 +133,10 @@ bool proto_new_packetInfo(proto_packetInfo *p, proto_code code);
 bool proto_new_packetWarn(proto_packetWarn *p, proto_code code);
 bool proto_new_packetError(proto_packetError *p, proto_code code);
 bool proto_new_packetIngoingMessage(proto_packetIngoingMessage *p,
-    proto_id src, proto_dataLength length, const proto_data* data);
+				 proto_id src, proto_dataLength length, const proto_data* data);
 bool proto_new_packetOutgoingMessage(proto_packetOutgoingMessage *p,
-    proto_id dest, proto_dataLength length, const proto_data* data);
+				proto_id dest, proto_dataLength length, const proto_data* data);
 bool proto_new_packetOutgoingResult(proto_packetOutgoingResult *p,
-    proto_outgoingResult result);
+									proto_outgoingResult result);
 
 

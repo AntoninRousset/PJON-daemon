@@ -12,9 +12,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "server.hpp"
 #include "logger.hpp"
+#include "server.hpp"
 #include "socket.hpp"
+
 #include <vector>
 
 static unsigned int update_period;
