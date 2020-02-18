@@ -18,7 +18,7 @@
 #define UPDATE_PERIOD 2000
 
 #define SERIAL_DEVICE "/dev/escaperoom"
-#define BAUDRATE 19200
+#define BAUDRATE 115200
 #define ID_COMPUTER 0x42
 #define ID_UNO	0x22
 #define ID_NANO 0x33
