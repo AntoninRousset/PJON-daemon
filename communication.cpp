@@ -257,7 +257,7 @@ size_t com_send(com_request * results, size_t n_max)
 
 size_t com_receive(com_message *m, size_t n_max)
 {
-	bus.receive();
+	bus.receive(10000);
 	size_t n = min(n_max, reception_p);
 	reception_p = 0;
 	memcpy(m, reception, n*sizeof(com_message));
